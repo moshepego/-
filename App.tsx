@@ -67,7 +67,7 @@ const App: React.FC = () => {
   const [simMonthlyContribution, setSimMonthlyContribution] = useState(0);
   const [showToast, setShowToast] = useState<string | null>(null);
 
-  // --- Tab Creator State ---
+  // --- Tab Management States ---
   const [newTabLabel, setNewTabLabel] = useState('');
   const [newTabIcon, setNewTabIcon] = useState('Tag');
 
@@ -98,7 +98,6 @@ const App: React.FC = () => {
       const email = userData.email;
       const id = getFamilyIdFromEmail(email);
       const authUser = { name: userData.name, email, photo: userData.picture, isGuest: false };
-      // Fixed: typo authUsr -> authUser
       setUser(authUser);
       setIsLoggedIn(true);
       setFamilyId(id);
@@ -157,7 +156,7 @@ const App: React.FC = () => {
     }
   }, [items, familyId, loading, currentTheme, familyName, isLoggedIn, tabs]);
 
-  // --- Tab Management ---
+  // --- Tab Actions ---
   const addTab = () => {
     if (!newTabLabel.trim()) return;
     const newTab: TabConfig = {
@@ -168,11 +167,7 @@ const App: React.FC = () => {
     };
     setTabs(prev => [...prev, newTab]);
     setNewTabLabel('');
-    triggerToast(`הקטגוריה "${newTabLabel}" נוספה`);
-  };
-
-  const toggleTabProjection = (id: string) => {
-    setTabs(prev => prev.map(t => t.id === id ? { ...t, includeInProjection: !t.includeInProjection } : t));
+    triggerToast(`הקטגוריה "${newTabLabel}" נוספה בהצלחה`);
   };
 
   const deleteTab = (id: string) => {
@@ -181,9 +176,11 @@ const App: React.FC = () => {
       return;
     }
     setTabs(prev => prev.filter(t => t.id !== id));
-    if (activeTab === id) setActiveTab(tabs.find(t => t.id !== id)?.id || 'apartment');
-    // Also cleanup items in this tab? Or keep them? Usually cleanup
-    // setItems(prev => prev.filter(i => i.category !== id));
+    if (activeTab === id) setActiveTab(tabs.find(t => t.id !== id)?.id || '');
+  };
+
+  const toggleTabProjection = (id: string) => {
+    setTabs(prev => prev.map(t => t.id === id ? { ...t, includeInProjection: !t.includeInProjection } : t));
   };
 
   // --- Calculations ---
@@ -406,14 +403,14 @@ const App: React.FC = () => {
       <main className="px-6 -mt-8 relative z-10 space-y-6">
         {activeTab === 'projections' ? (
           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 space-y-8 animate-in slide-in-from-bottom-4">
-             <h3 className="text-2xl font-black flex items-center gap-3"><Sparkles className="text-amber-500" /> תחזית חכמה</h3>
+             <h3 className="text-2xl font-black flex items-center gap-3"><Sparkles className="text-amber-500" /> תחזית הון חכמה</h3>
              <div className="text-center py-8 bg-slate-50 rounded-3xl border border-slate-100">
                 <p className="text-[10px] font-black text-slate-400 uppercase mb-2">יתרה משוערת בעוד {simMonths} חודשים</p>
                 <p className="text-5xl font-black text-slate-800 tracking-tighter">{formatCurrency(simulationResult)}</p>
              </div>
              <div className="space-y-6 px-2">
                 <div className="space-y-3">
-                   <div className="flex justify-between text-xs font-black text-slate-500"><span>טווח זמן</span> <span>{simMonths} חודשים</span></div>
+                   <div className="flex justify-between text-xs font-black text-slate-500"><span>טווח זמן (חודשים)</span> <span>{simMonths}</span></div>
                    <input type="range" min="1" max="120" value={simMonths} onChange={e => setSimMonths(parseInt(e.target.value))} className="w-full accent-amber-500 h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer" />
                 </div>
                 <div className="space-y-3">
@@ -560,11 +557,11 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Settings Modal */}
+      {/* Settings Modal (ניהול קטגוריות ותחזית הון) */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-6 backdrop-blur-md overflow-y-auto">
            <div className="bg-white p-8 rounded-[3rem] w-full max-w-lg shadow-2xl space-y-8 animate-in zoom-in my-8">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center border-b border-slate-50 pb-4">
                  <h3 className="text-2xl font-black">הגדרות חשבון</h3>
                  <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-800"><X size={18}/></button>
               </div>
@@ -593,27 +590,51 @@ const App: React.FC = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase mr-2 tracking-widest">ניהול קטגוריות ותחזית הון</label>
                     <div className="space-y-2">
                        {tabs.map(tab => (
-                         <div key={tab.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                            <div className="p-2 bg-white rounded-lg text-slate-400">{ICON_MAP[tab.iconKey] || <Tag size={14}/>}</div>
+                         <div key={tab.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100 group">
+                            <div className="p-2 bg-white rounded-lg text-slate-400 group-hover:text-indigo-500 transition-colors">
+                               {ICON_MAP[tab.iconKey] || <Tag size={14}/>}
+                            </div>
                             <span className="flex-1 font-bold text-sm text-slate-700">{tab.label}</span>
-                            <button onClick={() => toggleTabProjection(tab.id)} className={`p-2 rounded-xl transition-all ${tab.includeInProjection ? 'bg-amber-50 text-amber-600' : 'bg-slate-200 text-slate-400'}`} title={tab.includeInProjection ? "כלול בתחזית" : "לא כלול בתחזית"}>
+                            <button 
+                               onClick={() => toggleTabProjection(tab.id)} 
+                               className={`p-2 rounded-xl transition-all ${tab.includeInProjection ? 'bg-amber-100 text-amber-600 shadow-sm' : 'bg-slate-200 text-slate-400'}`}
+                               title={tab.includeInProjection ? "כלול בתחזית" : "לא כלול בתחזית"}
+                            >
                                {tab.includeInProjection ? <Eye size={16}/> : <EyeOff size={16}/>}
                             </button>
-                            <button onClick={() => deleteTab(tab.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                            <button 
+                               onClick={() => deleteTab(tab.id)} 
+                               className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                               title="מחק קטגוריה"
+                            >
+                               <Trash2 size={16}/>
+                            </button>
                          </div>
                        ))}
                     </div>
                     
                     {/* Add New Tab Form */}
-                    <div className="p-4 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 space-y-3">
-                       <p className="text-[9px] font-black text-slate-400 uppercase text-center">הוספת קטגוריה חדשה</p>
+                    <div className="p-5 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 space-y-4">
+                       <p className="text-[10px] font-black text-slate-400 uppercase text-center">הוספת קטגוריה חדשה</p>
                        <div className="flex gap-2">
-                          <input type="text" value={newTabLabel} onChange={e => setNewTabLabel(e.target.value)} className="flex-1 p-3 rounded-xl font-bold text-xs bg-white outline-none" placeholder="שם הקטגוריה..." />
-                          <button onClick={addTab} className={`${theme.bgGradient} text-white px-4 py-3 rounded-xl font-black shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all`}><Plus size={20}/></button>
+                          <input 
+                            type="text" 
+                            value={newTabLabel} 
+                            onChange={e => setNewTabLabel(e.target.value)} 
+                            className="flex-1 p-3 rounded-xl font-bold text-xs bg-white outline-none border-2 border-transparent focus:border-indigo-100" 
+                            placeholder="שם הקטגוריה..." 
+                          />
+                          <button onClick={addTab} className={`${theme.bgGradient} text-white px-5 py-3 rounded-xl font-black shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all`}>
+                             <Plus size={20}/>
+                          </button>
                        </div>
                        <div className="flex flex-wrap gap-2 justify-center">
-                          {Object.keys(ICON_MAP).slice(0, 10).map(ik => (
-                            <button key={ik} onClick={() => setNewTabIcon(ik)} className={`p-2 rounded-lg transition-all ${newTabIcon === ik ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400'}`}>
+                          {Object.keys(ICON_MAP).slice(0, 12).map(ik => (
+                            <button 
+                               key={ik} 
+                               onClick={() => setNewTabIcon(ik)} 
+                               className={`p-2.5 rounded-xl transition-all ${newTabIcon === ik ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-400 hover:bg-slate-100'}`}
+                            >
                                {ICON_MAP[ik]}
                             </button>
                           ))}
@@ -621,18 +642,24 @@ const App: React.FC = () => {
                     </div>
                  </div>
 
-                 {/* Theme */}
-                 <div className="space-y-3">
+                 {/* Theme Selector */}
+                 <div className="space-y-3 pb-4">
                     <label className="text-[10px] font-black text-slate-400 uppercase mr-2 tracking-widest">ערכת נושא</label>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3 justify-center">
                        {Object.keys(THEMES).map(k => (
-                         <button key={k} onClick={() => setCurrentTheme(k)} className={`w-10 h-10 rounded-full border-2 transition-all ${currentTheme === k ? 'ring-2 ring-offset-2 ring-indigo-400 border-white scale-110' : 'border-transparent'} ${THEMES[k].bgHeader}`} />
+                         <button 
+                           key={k} 
+                           onClick={() => setCurrentTheme(k)} 
+                           className={`w-11 h-11 rounded-full border-4 transition-all shadow-sm ${currentTheme === k ? 'ring-2 ring-offset-2 ring-indigo-400 border-white scale-110 shadow-lg' : 'border-transparent opacity-80 hover:opacity-100'} ${THEMES[k].bgHeader}`} 
+                         />
                        ))}
                     </div>
                  </div>
               </div>
 
-              <button onClick={() => setShowSettingsModal(false)} className={`${theme.bgGradient} w-full py-5 rounded-3xl text-white font-black shadow-xl hover:scale-105 active:scale-95 transition-all`}>שמור וסגור</button>
+              <button onClick={() => setShowSettingsModal(false)} className={`${theme.bgGradient} w-full py-5 rounded-3xl text-white font-black shadow-2xl hover:scale-105 active:scale-95 transition-all`}>
+                 סגור ושמור שינויים
+              </button>
            </div>
         </div>
       )}
