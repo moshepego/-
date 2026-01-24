@@ -1,0 +1,7 @@
+{
+  "name": "SmartFinance Pro",
+  "description": "A high-end personal and family financial management application featuring AI-powered receipt scanning, budget analysis, and long-term projections.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
