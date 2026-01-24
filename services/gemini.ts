@@ -7,23 +7,22 @@ export const scanReceipt = async (base64Data: string, categories: string[], mime
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [
-        {
-          parts: [
-            { inlineData: { mimeType: mimeType, data: base64Data } },
+      // Always use recommended object structure for multi-part requests
+      contents: {
+        parts: [
+          { inlineData: { mimeType: mimeType, data: base64Data } },
+          {
+            text: `Analyze this receipt or financial document (it might be a PDF or image). Extract data in JSON format:
             {
-              text: `Analyze this receipt or financial document (it might be a PDF or image). Extract data in JSON format:
-              {
-                "item": "Merchant name or product in Hebrew",
-                "cost": number,
-                "date": "YYYY-MM-DD",
-                "category": "One of: ${categories.join(', ')}",
-                "bank": "Bank name if mentioned"
-              }`
-            }
-          ]
-        }
-      ],
+              "item": "Merchant name or product in Hebrew",
+              "cost": number,
+              "date": "YYYY-MM-DD",
+              "category": "One of: ${categories.join(', ')}",
+              "bank": "Bank name if mentioned"
+            }`
+          }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -39,6 +38,7 @@ export const scanReceipt = async (base64Data: string, categories: string[], mime
         }
       }
     });
+    // The response.text property directly returns the extracted string output.
     return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Scan Error:", error);
@@ -57,6 +57,7 @@ export const analyzeBudget = async (categoryName: string, transactions: any[]) =
       2. Savings tip (טיפ לחיסכון)
       3. Encouraging remark (מילה טובה)`,
     });
+    // The response.text property directly returns the extracted string output.
     return response.text;
   } catch (error) {
     return "שגיאה בניתוח הנתונים.";

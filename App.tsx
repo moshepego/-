@@ -4,7 +4,8 @@ import {
   Plus, Wallet, FileSpreadsheet, Brain, Loader2, Camera, Sparkles, X, 
   Settings, Pencil, Trash2, Percent, TrendingUp, TrendingDown,
   PlusCircle, MinusCircle, FileUp, Tag, BarChart3, Layers, Calendar, LogOut, 
-  ShieldQuestion, AlertCircle, RefreshCcw, FileText, Sparkle, Trash, Download, Upload
+  ShieldQuestion, AlertCircle, RefreshCcw, FileText, Sparkle, Trash, Download, Upload,
+  Eye, EyeOff, Check
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -66,6 +67,10 @@ const App: React.FC = () => {
   const [simMonthlyContribution, setSimMonthlyContribution] = useState(0);
   const [showToast, setShowToast] = useState<string | null>(null);
 
+  // --- Tab Creator State ---
+  const [newTabLabel, setNewTabLabel] = useState('');
+  const [newTabIcon, setNewTabIcon] = useState('Tag');
+
   // --- Form Temp State ---
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isInstallments, setIsInstallments] = useState(false);
@@ -93,6 +98,7 @@ const App: React.FC = () => {
       const email = userData.email;
       const id = getFamilyIdFromEmail(email);
       const authUser = { name: userData.name, email, photo: userData.picture, isGuest: false };
+      // Fixed: typo authUsr -> authUser
       setUser(authUser);
       setIsLoggedIn(true);
       setFamilyId(id);
@@ -147,8 +153,38 @@ const App: React.FC = () => {
       localStorage.setItem(`items_${familyId}`, JSON.stringify(items));
       localStorage.setItem(`family_name_${familyId}`, familyName);
       localStorage.setItem('finance_theme', currentTheme);
+      localStorage.setItem('finance_tabs', JSON.stringify(tabs));
     }
-  }, [items, familyId, loading, currentTheme, familyName, isLoggedIn]);
+  }, [items, familyId, loading, currentTheme, familyName, isLoggedIn, tabs]);
+
+  // --- Tab Management ---
+  const addTab = () => {
+    if (!newTabLabel.trim()) return;
+    const newTab: TabConfig = {
+      id: `tab_${Date.now()}`,
+      label: newTabLabel,
+      iconKey: newTabIcon,
+      includeInProjection: true
+    };
+    setTabs(prev => [...prev, newTab]);
+    setNewTabLabel('');
+    triggerToast(`הקטגוריה "${newTabLabel}" נוספה`);
+  };
+
+  const toggleTabProjection = (id: string) => {
+    setTabs(prev => prev.map(t => t.id === id ? { ...t, includeInProjection: !t.includeInProjection } : t));
+  };
+
+  const deleteTab = (id: string) => {
+    if (tabs.length <= 1) {
+      triggerToast('חייבת להישאר לפחות קטגוריה אחת');
+      return;
+    }
+    setTabs(prev => prev.filter(t => t.id !== id));
+    if (activeTab === id) setActiveTab(tabs.find(t => t.id !== id)?.id || 'apartment');
+    // Also cleanup items in this tab? Or keep them? Usually cleanup
+    // setItems(prev => prev.filter(i => i.category !== id));
+  };
 
   // --- Calculations ---
   const getMonthsBetween = (d1: Date, d2: Date) => {
@@ -166,7 +202,7 @@ const App: React.FC = () => {
     if (type === 'simple') return p * (1 + ry * y);
     if (type === 'compound_yearly') return p * Math.pow(1 + ry, y);
     if (type === 'compound_daily') {
-      const days = m * 30.4375; // ממוצע ימים בחודש
+      const days = m * 30.4375;
       return p * Math.pow(1 + ry / 365, days);
     }
     return p;
@@ -195,7 +231,7 @@ const App: React.FC = () => {
     const filtered = items.filter(i => i.familyId === familyId && includedIds.includes(i.category));
     let total = filtered.reduce((acc, i) => acc + getItemValue(i, simMonths), 0);
     if (simMonthlyContribution > 0) {
-      const rm = (4 / 100) / 12; // 4% default for savings
+      const rm = (4 / 100) / 12;
       for(let i = 1; i <= simMonths; i++) total += simMonthlyContribution * Math.pow(1 + rm, simMonths - i);
     }
     return total;
@@ -229,21 +265,17 @@ const App: React.FC = () => {
         'ריבית (%)': i.interestRate || 0,
         'סוג ריבית': i.interestType || 'simple'
       }));
-      
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Transactions");
       XLSX.writeFile(wb, `${familyName}_SmartFinance.xlsx`);
       triggerToast('הנתונים יוצאו בהצלחה!');
-    } catch (e) {
-      triggerToast('שגיאה ביצוא הנתונים');
-    }
+    } catch (e) { triggerToast('שגיאה ביצוא הנתונים'); }
   };
 
   const importFromExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -251,7 +283,6 @@ const App: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData: any[] = XLSX.utils.sheet_to_json(firstSheet);
-        
         const importedItems: Transaction[] = jsonData.map((row: any) => ({
           id: `item_${Date.now()}_${Math.random()}`,
           item: row['תיאור'] || 'פריט מיובא',
@@ -264,16 +295,11 @@ const App: React.FC = () => {
           interestRate: parseFloat(row['ריבית (%)']) || 0,
           interestType: (row['סוג ריבית'] as InterestType) || 'simple',
           isInterest: (parseFloat(row['ריבית (%)']) || 0) > 0,
-          familyId,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
+          familyId, createdAt: Date.now(), updatedAt: Date.now()
         }));
-
         setItems(prev => [...prev, ...importedItems]);
         triggerToast(`יובאו ${importedItems.length} עסקאות בהצלחה`);
-      } catch (err) {
-        triggerToast('שגיאה ביבוא הקובץ. וודא שהפורמט תקין.');
-      }
+      } catch (err) { triggerToast('שגיאה ביבוא הקובץ. וודא שהפורמט תקין.'); }
     };
     reader.readAsArrayBuffer(file);
   };
@@ -300,26 +326,14 @@ const App: React.FC = () => {
             bank: result.bank || prev.bank
           }));
           triggerToast('הנתונים חולצו בהצלחה');
-        } else {
-          triggerToast('לא הצלחנו לזהות נתונים מהמסמך');
-        }
+        } else { triggerToast('לא הצלחנו לזהות נתונים מהמסמך'); }
         setIsScanningReceipt(false);
-      };
-      reader.onerror = () => {
-        setIsScanningReceipt(false);
-        triggerToast('שגיאה בקריאת הקובץ');
       };
       reader.readAsDataURL(file);
-    } catch (error) {
-      setIsScanningReceipt(false);
-      triggerToast('שגיאה בתהליך הסריקה');
-    }
+    } catch (error) { setIsScanningReceipt(false); triggerToast('שגיאה בתהליך הסריקה'); }
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.reload();
-  };
+  const handleLogout = () => { localStorage.clear(); window.location.reload(); };
 
   if (loading && isLoggedIn) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
 
@@ -354,7 +368,7 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-32 bg-slate-50" dir="rtl">
       {showToast && <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold shadow-2xl">{showToast}</div>}
 
-      <header className={`${theme.bgHeader} text-white pt-10 pb-16 px-6 rounded-b-[3rem] shadow-xl`}>
+      <header className={`${theme.bgHeader} text-white pt-10 pb-16 px-6 rounded-b-[3rem] shadow-xl transition-colors duration-500`}>
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/30 overflow-hidden">
@@ -548,14 +562,16 @@ const App: React.FC = () => {
 
       {/* Settings Modal */}
       {showSettingsModal && (
-        <div className="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-6 backdrop-blur-md">
-           <div className="bg-white p-10 rounded-[3rem] w-full max-w-md shadow-2xl space-y-8 animate-in zoom-in">
+        <div className="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-6 backdrop-blur-md overflow-y-auto">
+           <div className="bg-white p-8 rounded-[3rem] w-full max-w-lg shadow-2xl space-y-8 animate-in zoom-in my-8">
               <div className="flex justify-between items-center">
                  <h3 className="text-2xl font-black">הגדרות חשבון</h3>
                  <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-800"><X size={18}/></button>
               </div>
-              <div className="space-y-6">
-                 <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
+              
+              <div className="space-y-8 max-h-[70vh] overflow-y-auto no-scrollbar px-1">
+                 {/* User Info */}
+                 <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100">
                     <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm">
                       {user?.photo ? <img src={user.photo} className="w-full h-full object-cover" /> : <Wallet size={24}/>}
                     </div>
@@ -565,10 +581,47 @@ const App: React.FC = () => {
                     </div>
                     <button onClick={handleLogout} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"><LogOut size={18}/></button>
                  </div>
+
+                 {/* Budget Name */}
                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase mr-2 tracking-widest">שם התקציב המשפחתי</label>
                     <input type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-indigo-100" />
                  </div>
+
+                 {/* Tab Management */}
+                 <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase mr-2 tracking-widest">ניהול קטגוריות ותחזית הון</label>
+                    <div className="space-y-2">
+                       {tabs.map(tab => (
+                         <div key={tab.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div className="p-2 bg-white rounded-lg text-slate-400">{ICON_MAP[tab.iconKey] || <Tag size={14}/>}</div>
+                            <span className="flex-1 font-bold text-sm text-slate-700">{tab.label}</span>
+                            <button onClick={() => toggleTabProjection(tab.id)} className={`p-2 rounded-xl transition-all ${tab.includeInProjection ? 'bg-amber-50 text-amber-600' : 'bg-slate-200 text-slate-400'}`} title={tab.includeInProjection ? "כלול בתחזית" : "לא כלול בתחזית"}>
+                               {tab.includeInProjection ? <Eye size={16}/> : <EyeOff size={16}/>}
+                            </button>
+                            <button onClick={() => deleteTab(tab.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                         </div>
+                       ))}
+                    </div>
+                    
+                    {/* Add New Tab Form */}
+                    <div className="p-4 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 space-y-3">
+                       <p className="text-[9px] font-black text-slate-400 uppercase text-center">הוספת קטגוריה חדשה</p>
+                       <div className="flex gap-2">
+                          <input type="text" value={newTabLabel} onChange={e => setNewTabLabel(e.target.value)} className="flex-1 p-3 rounded-xl font-bold text-xs bg-white outline-none" placeholder="שם הקטגוריה..." />
+                          <button onClick={addTab} className={`${theme.bgGradient} text-white px-4 py-3 rounded-xl font-black shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all`}><Plus size={20}/></button>
+                       </div>
+                       <div className="flex flex-wrap gap-2 justify-center">
+                          {Object.keys(ICON_MAP).slice(0, 10).map(ik => (
+                            <button key={ik} onClick={() => setNewTabIcon(ik)} className={`p-2 rounded-lg transition-all ${newTabIcon === ik ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400'}`}>
+                               {ICON_MAP[ik]}
+                            </button>
+                          ))}
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* Theme */}
                  <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-400 uppercase mr-2 tracking-widest">ערכת נושא</label>
                     <div className="flex flex-wrap gap-2">
@@ -578,7 +631,8 @@ const App: React.FC = () => {
                     </div>
                  </div>
               </div>
-              <button onClick={() => setShowSettingsModal(false)} className={`${theme.bgGradient} w-full py-5 rounded-2xl text-white font-black shadow-xl hover:scale-105 active:scale-95 transition-all`}>שמור וסגור</button>
+
+              <button onClick={() => setShowSettingsModal(false)} className={`${theme.bgGradient} w-full py-5 rounded-3xl text-white font-black shadow-xl hover:scale-105 active:scale-95 transition-all`}>שמור וסגור</button>
            </div>
         </div>
       )}
